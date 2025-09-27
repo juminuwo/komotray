@@ -23,11 +23,8 @@ RightMonitorIconState := -1
 global Screen := 0
 global LastTaskbarScroll := 0
 
-; Check if komorebi server is running (removed auto-start)
-Process, Exist, komorebi.exe
-if (!ErrorLevel) {
-    MsgBox, Warning: Komorebi server is not running. Please start it manually.
-}
+; Wait for komorebi server to be available with retry logic
+WaitForKomorebi()
 
 ; ======================================================================
 ; Event Handler
@@ -48,9 +45,8 @@ if (Pipe = -1) {
     ExitTray()
 }
 
-; Wait for Komorebi to connect
-Komorebi("subscribe " . PipeName)
-DllCall("ConnectNamedPipe", "Ptr", Pipe, "Ptr", 0) ; set PipeMode = nowait to avoid getting stuck when paused
+; Subscribe to Komorebi and wait for connection
+SubscribeToKomorebi(PipeName, Pipe)
 
 ; Subscribe to Komorebi events
 Loop {
@@ -183,6 +179,56 @@ ScrollWorkspace(dir) {
 }
 
 ; ======================================================================
+; Retry Logic Functions
+; ======================================================================
+
+WaitForKomorebi() {
+    MaxRetries := 30
+    RetryDelay := 1000
+
+    Loop, %MaxRetries% {
+        Process, Exist, komorebi.exe
+        if (ErrorLevel) {
+            Menu, Tray, Tip, Connected to Komorebi
+            return true
+        }
+
+        if (A_Index = 1) {
+            Menu, Tray, Tip, Waiting for Komorebi to start...
+        } else {
+            Menu, Tray, Tip, Waiting for Komorebi... (%A_Index%/%MaxRetries%)
+        }
+
+        Sleep, %RetryDelay%
+    }
+
+    MsgBox, 48, Komorebi Timeout, Komorebi server did not start within 30 seconds.`n`nPlease start komorebi manually and reload this tray application.
+    ExitTray()
+}
+
+SubscribeToKomorebi(PipeName, Pipe) {
+    MaxRetries := 10
+    RetryDelay := 500
+
+    Loop, %MaxRetries% {
+        try {
+            Komorebi("subscribe " . PipeName)
+            DllCall("ConnectNamedPipe", "Ptr", Pipe, "Ptr", 0)
+            Menu, Tray, Tip, Connected to Komorebi events
+            return true
+        } catch e {
+            if (A_Index < MaxRetries) {
+                Menu, Tray, Tip, Connecting to Komorebi... (%A_Index%/%MaxRetries%)
+                Sleep, %RetryDelay%
+            }
+        }
+    }
+
+    MsgBox, 48, Connection Failed, Failed to subscribe to Komorebi events.`n`nPlease check if komorebi is running properly.
+    ExitTray()
+}
+
+; ======================================================================
 ; Auxiliary Functions
 ; ======================================================================
 
@@ -190,4 +236,5 @@ MouseIsOver(WinTitle) {
     MouseGetPos,,, Win
     return WinExist(WinTitle . " ahk_id " . Win)
 }
+
 
