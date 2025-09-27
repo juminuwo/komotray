@@ -12,27 +12,22 @@ global KomorebiConfig := A_ScriptDir . "/komorebi-config/komorebi.json"
 ; Initialization
 ; ======================================================================
 
-; Set up tray menu
+; Set up simplified tray menu (removed pause/restart functionality)
 Menu, Tray, NoStandard
-Menu, Tray, add, Pause Komorebi, PauseKomorebi
-Menu, Tray, add, Restart Komorebi, StartKomorebi
-Menu, Tray, add  ; separator line
 Menu, Tray, add, Reload Tray, ReloadTray
 Menu, Tray, add, Exit Tray, ExitTray
 
-; Define default action and activate it with single click
-Menu, Tray, Default, Pause Komorebi
-Menu, Tray, Click, 1
-
 ; Initialize internal states
-IconState := -1
+LeftMonitorIconState := -1
+RightMonitorIconState := -1
 global Screen := 0
 global LastTaskbarScroll := 0
 
-; Start the komorebi server
+; Check if komorebi server is running (removed auto-start)
 Process, Exist, komorebi.exe
-if (!ErrorLevel && AutoStartKomorebi)
-    StartKomorebi(false)
+if (!ErrorLevel) {
+    MsgBox, Warning: Komorebi server is not running. Please start it manually.
+}
 
 ; ======================================================================
 ; Event Handler
@@ -83,11 +78,8 @@ Loop {
     Workspace := ScreenQ.workspaces.focused
     WorkspaceQ := ScreenQ.workspaces.elements[Workspace + 1]
 
-    ; Update tray icon
-    if (Paused | Screen << 1 | Workspace << 4 != IconState) {
-        UpdateIcon(Paused, Screen, Workspace, ScreenQ.name, WorkspaceQ.name)
-        IconState := Paused | Screen << 1 | Workspace << 4 ; use 3 bits for monitor (i.e. up to 8 monitors)
-    }
+    ; Update tray icons for both monitors
+    UpdateMonitorIcons(State)
 }
 Return
 
@@ -116,29 +108,56 @@ Komorebi(arg) {
     RunWait % "komorebic.exe " . arg,, Hide
 }
 
-StartKomorebi(reloadTray:=true) {
-    Komorebi("stop")
-    Komorebi("start -c " . KomorebiConfig)
-    if (reloadTray)
-        ReloadTray()
-}
 
-PauseKomorebi() {
-    Komorebi("toggle-pause")
-}
 
 SwapScreens() {
     ; Swap monitors on a 2 screen setup. ToDo: Add safeguard for 3+ monitors
     Komorebi("swap-workspaces-with-monitor " . 1 - Screen)
 }
 
-UpdateIcon(paused, screen, workspace, screenName, workspaceName) {
-    Menu, Tray, Tip, % workspaceName . " on " . screenName
-    icon := IconPath . workspace + 1 . "-" . screen + 1 . ".ico"
-    if (!paused && FileExist(icon))
-        Menu, Tray, Icon, %icon%
-    else
-        Menu, Tray, Icon, % IconPath . "pause.ico" ; also used as fallback
+
+UpdateMonitorIcons(State) {
+    ; Get monitor information
+    LeftMonitor := State.Monitors.elements[1]
+    LeftWorkspace := LeftMonitor.workspaces.focused
+    LeftWorkspaceQ := LeftMonitor.workspaces.elements[LeftWorkspace + 1]
+
+    ; Build states for comparison
+    NewLeftState := LeftWorkspace << 4
+    NewRightState := 0
+    RightTooltip := ""
+
+    ; Handle right monitor if it exists
+    if (State.Monitors.elements.Length() > 1) {
+        RightMonitor := State.Monitors.elements[2]
+        RightWorkspace := RightMonitor.workspaces.focused
+        RightWorkspaceQ := RightMonitor.workspaces.elements[RightWorkspace + 1]
+        NewRightState := RightWorkspace << 8
+        RightTooltip := "`nRight: " . (RightWorkspace + 1) . " on " . RightMonitor.name
+    }
+
+    ; Update icon if any monitor state changed
+    if (NewLeftState != LeftMonitorIconState || NewRightState != RightMonitorIconState) {
+        ; Use focused monitor's icon as primary display
+        FocusedMonitor := State.Monitors.focused
+        FocusedWorkspace := State.Monitors.elements[FocusedMonitor + 1].workspaces.focused
+
+        icon := IconPath . FocusedWorkspace + 1 . "-" . FocusedMonitor + 1 . ".ico"
+        if (FileExist(icon)) {
+            Menu, Tray, Icon, %icon%
+        } else {
+            ; Fallback icon
+            Menu, Tray, Icon, % IconPath . "1-1.ico"
+        }
+
+        ; Create comprehensive tooltip showing both monitors with workspace numbers
+        LeftTooltip := "Left: " . (LeftWorkspace + 1) . " on " . LeftMonitor.name
+        FullTooltip := LeftTooltip . RightTooltip
+        Menu, Tray, Tip, %FullTooltip%
+
+        LeftMonitorIconState := NewLeftState
+        RightMonitorIconState := NewRightState
+    }
 }
 
 ReloadTray() {
@@ -148,7 +167,6 @@ ReloadTray() {
 
 ExitTray() {
     DllCall("CloseHandle", "Ptr", Pipe)
-    Komorebi("stop")
     ExitApp
 }
 
