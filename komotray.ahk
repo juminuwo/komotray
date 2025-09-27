@@ -87,9 +87,6 @@ Return
 ; Key Bindings
 ; ======================================================================
 
-; Load key bindings
-#Include, %A_ScriptDir%\komorebi-config\bindings.ahk
-
 ; Alt + scroll to cycle workspaces
 !WheelUp::ScrollWorkspace("previous")
 !WheelDown::ScrollWorkspace("next")

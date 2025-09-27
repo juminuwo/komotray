@@ -42,6 +42,3 @@ For single monitor setups, only run `komotray-left.ahk`.
 ## Tray menu and (optional) hotkeys
 
 Right click on either tray icon opens a simplified menu with options to reload the tray application or exit. The capability to pause, restart, or start komorebi has been removed from the tray menu for simplicity.
-
-Optionally, komo*Tray* can also be used to configure additional key bindings. See [my personal configuration](komorebi-config) for an example. 
-
