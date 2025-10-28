@@ -166,7 +166,7 @@ ScrollWorkspace(dir) {
 ; ======================================================================
 
 WaitForKomorebi() {
-    MaxRetries := 30
+    MaxRetries := 50
     RetryDelay := 1000
 
     Loop, %MaxRetries% {

@@ -190,8 +190,8 @@ WaitForKomorebi() {
 }
 
 SubscribeToKomorebi(PipeName, Pipe) {
-    MaxRetries := 10
-    RetryDelay := 500
+    MaxRetries := 50
+    RetryDelay := 1000
 
     Loop, %MaxRetries% {
         try {
